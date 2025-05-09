@@ -8,8 +8,8 @@ app = FastAPI()
 # ここで秘密キーを定義（後で iPhone側から送る）
 SECRET_KEY = os.getenv("MY_SECRET_KEY", "abc123")
 
-notion = Client(auth=os.getenv("ntn_g22675070349Syg1Yqo1mBzgTdnqSl3xL3WOMf3QH7F29s"))
-DB_ID = os.getenv("1ed08727695a800fbe1efc717a210929")
+notion = Client(auth=os.getenv("NOTION_TOKEN"))
+DB_ID = os.getenv("NOTION_DB_ID")
 model = whisper.load_model("base")
 
 @app.post("/process")
