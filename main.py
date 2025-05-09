@@ -47,7 +47,7 @@ def run_pipeline(url: str):
         notion.pages.create(
             parent={"database_id": DB_ID},
             properties={
-                "Name":    {"title": [{"text": {"content": transcript[:50] or "No speech"}}]},
+                "名前":    {"title": [{"text": {"content": transcript[:50] or "No speech"}}]},
                 "URL":     {"url": url},
                 "Content": {"rich_text": [{"text": {"content": transcript}}]},
             }
