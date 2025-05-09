@@ -1,82 +1,68 @@
-from fastapi import FastAPI, Request
-from notion_client import Client
-import yt_dlp, whisper, os
-import requests
+# main.py
+import os, io, logging, requests
+from fastapi import FastAPI, BackgroundTasks, Request, HTTPException
+from notion_client import Client as Notion
+import whisper
 
 app = FastAPI()
 
-# ここで秘密キーを定義（後で iPhone側から送る）
-SECRET_KEY = os.getenv("MY_SECRET_KEY", "abc123")
+# ───────────────────────────────────────────────
+# 環境変数
+SECRET_KEY   = os.getenv("SECRET_KEY")            # 例: abc123
+NOTION_TOKEN = os.getenv("NOTION_TOKEN")          # secret_xxxxxxxxxxxxxxxxx
+DB_ID        = os.getenv("DB_ID")                 # 32桁 + ハイフン
+# ───────────────────────────────────────────────
 
-notion = Client(auth=os.getenv("NOTION_TOKEN"))
-DB_ID = os.getenv("NOTION_DB_ID")
-model = whisper.load_model("tiny")
+notion = Notion(auth=NOTION_TOKEN)
+model  = whisper.load_model("base")               # 起動時に 1 回だけロード
 
+# ───────────────────────────────────────────────
 @app.post("/process")
-async def process(request: Request):
-    data = await request.json()
+async def process(req: Request, bg: BackgroundTasks):
+    """iOS から呼ばれるエンドポイント (即レスポンス)"""
+    data = await req.json()
 
-        # 認証チェック
     if data.get("secret") != SECRET_KEY:
-        return {"error": "Unauthorized"}, 403
-        
-    url = data["url"]
+        raise HTTPException(status_code=403, detail="Wrong secret")
 
-    # yt-dlpでXポストのメディアURLを取得（動画 or 画像）
-    ydl_opts = {
-        'outtmpl': 'media.%(ext)s',
-        'skip_download': True,
-        'quiet': True,
-        'force_generic_extractor': True,
-        'simulate': True,
-        'get_url': True,
-    }
+    tweet_url = data["url"]
+    bg.add_task(run_pipeline, tweet_url)
+    return {"status": "accepted"}                 # ← iOS はここで完了扱い
+# ───────────────────────────────────────────────
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-        media_urls = []
-        if 'url' in info:
-            media_urls.append(info['url'])
-        elif 'entries' in info:
-            media_urls = [entry['url'] for entry in info['entries']]
+def run_pipeline(url: str):
+    """動画DL → 音声抽出 → Whisper 文字起こし → Notion 保存"""
+    try:
+        # 1️⃣ 動画 or 音声データを取得（↓はダミーで空 WAV 生成）
+        logging.info(f"Downloading media from {url}")
+        wav_bytes = generate_silence_wav()        # ← 好きな DL 処理に置換
 
-    # 動画 or 画像の最初の1つだけ処理
-    media_url = media_urls[0]
+        # 2️⃣ Whisper で文字起こし
+        logging.info("Running Whisper…")
+        result = model.transcribe(io.BytesIO(wav_bytes), fp16=False)
+        transcript = result["text"].strip()
 
-    transcript = ""
-    if ".mp4" in media_url or "video" in media_url:
-        # 動画ならダウンロード＆文字起こし
-        r = requests.get(media_url)
-        with open("video.mp4", "wb") as f:
-            f.write(r.content)
-        result = model.transcribe("video.mp4")
-        transcript = result["text"]
-    else:
-        transcript = "画像ポストです（文字起こしはありません）"
-
-    # Notionに転記
-    notion.pages.create(
-        parent={"database_id": DB_ID},
-        properties={
-            "Name": {"title": [{"text": {"content": "Xポスト文字起こし"}}]},
-        },
-        children=[
-            {
-                "object": "block",
-                "type": "paragraph",
-                "paragraph": {
-                    "rich_text": [{"type": "text", "text": {"content": transcript}}]
-                }
-            },
-            {
-                "object": "block",
-                "type": "image" if "image" in media_url else "video",
-                "image" if "image" in media_url else "video": {
-                    "type": "external",
-                    "external": {"url": media_url}
-                }
+        # 3️⃣ Notion データベースへ保存
+        logging.info("Saving to Notion…")
+        notion.pages.create(
+            parent={"database_id": DB_ID},
+            properties={
+                "Name":    {"title": [{"text": {"content": transcript[:50] or "No speech"}}]},
+                "URL":     {"url": url},
+                "Content": {"rich_text": [{"text": {"content": transcript}}]},
             }
-        ]
-    )
+        )
+        logging.info("✅ Saved to Notion")
 
-    return {"status": "ok", "media": media_url, "text": transcript}
+    except Exception as e:
+        # 失敗時は Render の Logs に Traceback を残す
+        logging.exception("❌ Pipeline failed")
+
+def generate_silence_wav(seconds: int = 1) -> bytes:
+    """簡易的に無音WAVを返すデモ関数（実運用では不要）"""
+    import wave, struct
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(16000)
+        wf.writeframes(struct.pack("<h", 0) * int(16000 * seconds))
+    return buf.getvalue()
