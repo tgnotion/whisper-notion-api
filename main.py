@@ -30,33 +30,50 @@ async def process(req: Request, bg: BackgroundTasks):
     return {"status": "accepted"}                 # ← iOS はここで完了扱い
 # ───────────────────────────────────────────────
 
-def run_pipeline(url: str):
-    """動画DL → 音声抽出 → Whisper 文字起こし → Notion 保存"""
+# def run_pipeline(url: str):
+#     """動画DL → 音声抽出 → Whisper 文字起こし → Notion 保存"""
+    # try:
+    #     # 1️⃣ 動画 or 音声データを取得（↓はダミーで空 WAV 生成）
+    #     logging.info(f"Downloading media from {url}")
+    #     wav_bytes = generate_silence_wav()        # ← 好きな DL 処理に置換
+
+    #     # 2️⃣ Whisper で文字起こし
+    #     logging.info("Running Whisper…")
+    #     result = model.transcribe(io.BytesIO(wav_bytes), fp16=False)
+    #     transcript = result["text"].strip()
+
+    #     # 3️⃣ Notion データベースへ保存
+    #     logging.info("Saving to Notion…")
+    #     notion.pages.create(
+    #         parent={"database_id": DB_ID},
+    #         properties={
+    #             "名前":    {"title": [{"text": {"content": transcript[:50] or "No speech"}}]},
+    #             "URL":     {"url": url},
+    #             "Content": {"rich_text": [{"text": {"content": transcript}}]},
+    #         }
+    #     )
+    #     logging.info("✅ Saved to Notion")
+
+    # except Exception as e:
+    #     # 失敗時は Render の Logs に Traceback を残す
+    #     logging.exception("❌ Pipeline failed")
+
+def run_pipeline(tweet_url: str):
     try:
-        # 1️⃣ 動画 or 音声データを取得（↓はダミーで空 WAV 生成）
-        logging.info(f"Downloading media from {url}")
-        wav_bytes = generate_silence_wav()        # ← 好きな DL 処理に置換
+        transcript = f"URL: {tweet_url}"      # ← とりあえず文字列を作るだけ
 
-        # 2️⃣ Whisper で文字起こし
-        logging.info("Running Whisper…")
-        result = model.transcribe(io.BytesIO(wav_bytes), fp16=False)
-        transcript = result["text"].strip()
-
-        # 3️⃣ Notion データベースへ保存
-        logging.info("Saving to Notion…")
         notion.pages.create(
             parent={"database_id": DB_ID},
             properties={
-                "名前":    {"title": [{"text": {"content": transcript[:50] or "No speech"}}]},
-                "URL":     {"url": url},
+                "Name":    {"title": [{"text": {"content": transcript[:50]}}]},
+                "URL":     {"url": tweet_url},
                 "Content": {"rich_text": [{"text": {"content": transcript}}]},
             }
         )
-        logging.info("✅ Saved to Notion")
+        logging.info("Saved to Notion 👍")
 
-    except Exception as e:
-        # 失敗時は Render の Logs に Traceback を残す
-        logging.exception("❌ Pipeline failed")
+    except Exception:
+        logging.exception("Pipeline failed")
 
 def generate_silence_wav(seconds: int = 1) -> bytes:
     """簡易的に無音WAVを返すデモ関数（実運用では不要）"""
