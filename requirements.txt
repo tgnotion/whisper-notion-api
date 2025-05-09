@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+notion-client
+yt-dlp
+whisper
+torch
