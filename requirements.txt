@@ -2,6 +2,6 @@ fastapi
 uvicorn
 notion-client
 yt-dlp
-whisper
+git+https://github.com/openai/whisper.git
 torch
 requests
