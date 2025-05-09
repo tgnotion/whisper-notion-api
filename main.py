@@ -14,7 +14,7 @@ DB_ID        = os.getenv("DB_ID")                 # 32桁 + ハイフン
 # ───────────────────────────────────────────────
 
 notion = Notion(auth=NOTION_TOKEN)
-model  = whisper.load_model("base")               # 起動時に 1 回だけロード
+model  = whisper.load_model("tiny")               # 起動時に 1 回だけロード
 
 # ───────────────────────────────────────────────
 @app.post("/process")
