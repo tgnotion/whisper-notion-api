@@ -5,6 +5,9 @@ import requests
 
 app = FastAPI()
 
+# ここで秘密キーを定義（後で iPhone側から送る）
+SECRET_KEY = os.getenv("MY_SECRET_KEY", "abc123")
+
 notion = Client(auth=os.getenv("ntn_g22675070349Syg1Yqo1mBzgTdnqSl3xL3WOMf3QH7F29s"))
 DB_ID = os.getenv("1ed08727695a800fbe1efc717a210929")
 model = whisper.load_model("base")
@@ -12,6 +15,11 @@ model = whisper.load_model("base")
 @app.post("/process")
 async def process(request: Request):
     data = await request.json()
+
+        # 認証チェック
+    if data.get("secret") != SECRET_KEY:
+        return {"error": "Unauthorized"}, 403
+        
     url = data["url"]
 
     # yt-dlpでXポストのメディアURLを取得（動画 or 画像）
