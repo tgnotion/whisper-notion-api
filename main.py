@@ -10,7 +10,7 @@ SECRET_KEY = os.getenv("MY_SECRET_KEY", "abc123")
 
 notion = Client(auth=os.getenv("NOTION_TOKEN"))
 DB_ID = os.getenv("NOTION_DB_ID")
-model = whisper.load_model("base")
+model = whisper.load_model("tiny")
 
 @app.post("/process")
 async def process(request: Request):
